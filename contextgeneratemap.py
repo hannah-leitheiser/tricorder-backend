@@ -5,84 +5,67 @@ import contextorigins
 from contexttranslations import translateToLL, translateToPlot
 from contextorigins import contexts, plot
 
-svg=open("index.html", "w")
-mapfile = open("map2.txt", "r")
+def midpoint( points ):
+    x=0
+    y=0
+    n=0
+    for p in set(points):
+        x+=p[0]
+        y+=p[1]
+        n+=1
+    return (x/n, y/n)
 
-offsetx=0
-offset=offsetx
+def map_file_to_polygons( filename ):
 
-rectangles=[]
+    mapfile = open(filename, "r")
+    rectangles=[]
 
-department="28"
+    department="28"
 
-# n - New
-# h - no home
-# H - New/NH
+    for line in mapfile.readlines():
+        if line[0].upper()=='D':
+            department=line[1]+line[2]
+        else:
+            print(line)
+            linesplit = line.split()
+            posx = int(linesplit[0])
+            posy = int(linesplit[1])
+            if linesplit[2].upper() == 'X':
+                for x in range((len(linesplit)-4)//2):
+                    rectangles.append( { "coordinates" : [ (posx, posy), 
+                                         (posx + int(linesplit[x*2+4]), posy), 
+                                         (posx+int(linesplit[x*2+4]), posy+int(linesplit[3])), 
+                                         (posx , posy+int(linesplit[3])),
+                                         (posx, posy) ],
+                                         "label" : str(linesplit[x*2+5]), 
+                                         "department" : department } )
+                    posx = posx + int(linesplit[x*2+4])
+            
+            if linesplit[3].upper() == 'X':
+                for x in range((len(linesplit)-4)//2):
+                    rectangles.append( {"coordinates" : [ (posx, posy), 
+                                        (posx, posy + int(linesplit[x*2+4])), 
+                                        (posx+int(linesplit[2]), posy+int(linesplit[x*2+4])), 
+                                        (posx+int(linesplit[2]) , posy),
+                                        (posx, posy) ],
+                                        "label" : str(linesplit[x*2+5]), 
+                                        "department" : department } )
+                    posy = posy + int(linesplit[x*2+4])
 
-specials = [("03-013","n"),
-            ("03-011","h"),
+            if linesplit[3].upper() != 'X' and linesplit[2].upper() != 'X':
+                    rectangles.append( { "coordinates" : [(posx, posy), 
+                                        (posx, posy + int(linesplit[3])), 
+                                        (posx+int(linesplit[2]), posy+int(linesplit[3])), 
+                                        (posx+int(linesplit[2]) , posy),
+                                        (posx, posy)],
+                                        "label" : str(linesplit[4]), 
+                                        "department" : department }  )
 
-            ("51-001","H"),
-            ("45-001","h"),
-            ("45-003","n"),
-            ("08-009","H"),
-            ("09-008", "H"),
-            ("11-012", "H"),
-             ("36-002", "n"),
-            ("36-004", "h"),
-            ("33-012", "H"),
-            ("18-020", "n"),
-            ("18-018", "h"),
-            ("25-002", "n"),
-            ("25-004", "h")]
-
-for line in mapfile.readlines():
-    if line[0].upper()=='D':
-        department=line[1]+line[2]
-    else:
-        print(line)
-        linesplit = line.split()
-        posx = int(linesplit[0])
-        posy = int(linesplit[1])
-        if linesplit[2].upper() == 'X':
-            for x in range((len(linesplit)-4)//2):
-                rectangles.append( (posx+offsetx, posy, 
-                                    posx + int(linesplit[x*2+4])+offsetx, posy, 
-                                    posx+int(linesplit[x*2+4])+offsetx, posy+int(linesplit[3]), 
-                                    posx+offsetx , posy+int(linesplit[3]),
-                                    str(linesplit[x*2+5]),department ) )
-                posx = posx + int(linesplit[x*2+4])
         
-        if linesplit[3].upper() == 'X':
-            for x in range((len(linesplit)-4)//2):
-                rectangles.append( (posx+offsetx, posy, 
-                                    posx+offsetx, posy + int(linesplit[x*2+4]), 
-                                    posx+int(linesplit[2])+offsetx, posy+int(linesplit[x*2+4]), 
-                                    posx+int(linesplit[2])+offsetx , posy,
-                                    str(linesplit[x*2+5]), department ) )
-                posy = posy + int(linesplit[x*2+4])
-
-        if linesplit[3].upper() != 'X' and linesplit[2].upper() != 'X':
-                rectangles.append( (posx+offsetx, posy, 
-                                    posx+offsetx, posy + int(linesplit[3]), 
-                                    posx+int(linesplit[2])+offsetx, posy+int(linesplit[3]), 
-                                    posx+int(linesplit[2])+offsetx , posy,
-                                    str(linesplit[4]), department ) )
+    return rectangles
 
 
-for x in range(len(rectangles)):
-        rectangles[x] = rectangles[x]+(' ',)
-        for special in specials:
-            if rectangles[x][8] == special[0]:
-                rectangles[x] = rectangles[x][:-1]+(special[1],)
-
-
-departments = set()
-for rec in rectangles:
-    departments.add(rec[9])
-departments.add("ALL")
-
-
+rectangles = map_file_to_polygons("map2.txt")
 
 department_colors= {
                     "00": "(100,100,100)",
@@ -106,6 +89,7 @@ geoJSONMapFile.write( """
 
          """)
 
+centertable = open("table.txt","w")
 afterFirst = False
 for rec in rectangles:
 
@@ -114,140 +98,34 @@ for rec in rectangles:
         geoJSONMapFile.write(",\n")
 
     afterFirst = True
-    point1ll = translateToLL( contexts["The Home Depot"]["origin"],
-                                              { "x" : rec[0], "y" : -rec[1] },
-                                              contexts["The Home Depot"]["units"] )
-    point2ll = translateToLL( contexts["The Home Depot"]["origin"],
-                                              { "x" : rec[2], "y" : -rec[3] },
-                                              contexts["The Home Depot"]["units"] )
-
-    point3ll = translateToLL( contexts["The Home Depot"]["origin"],
-                                              { "x" : rec[4], "y" : -rec[5]},
-                                              contexts["The Home Depot"]["units"] )
-    point4ll = translateToLL( contexts["The Home Depot"]["origin"],
-                                              {"x" : rec[6], "y" : -rec[7]} ,
-                                              contexts["The Home Depot"]["units"] )
-
-
 
 
     geoJSONMapFile.write( "{\n\"type\" : \"Feature\",\n")
     geoJSONMapFile.write( "\"properties\" : {\n")
-    geoJSONMapFile.write( " \"fill\" : \"rgb"+department_colors[rec[9]]+"\",\n")
-    geoJSONMapFile.write( " \"label\" : \"" + rec[8] + "\" },")
+    geoJSONMapFile.write( " \"fill\" : \"rgb"+department_colors[rec["department"]]+"\",\n")
+    geoJSONMapFile.write( " \"label\" : \"" + rec["label"] + "\" },")
 
     geoJSONMapFile.write( "\"geometry\" : {\n  \"type\":\"Polygon\", \n \"coordinates\": [ \n \n")
-    geoJSONMapFile.write('[ [ '+str(point1ll["longitude"])+','+
-                                  str(point1ll["latitude"])+'], ['+
-                                  str(point2ll["longitude"])+','+
-                                  str(point2ll["latitude"])+'], ['+
-                                  str(point3ll["longitude"])+','+
-                                  str(point3ll["latitude"])+'], ['+
-                                  str(point4ll["longitude"])+','+
-                                      str(point4ll["latitude"])+'],[' +
-                                      str(point1ll["longitude"])+','+
-                                      str(point1ll["latitude"])+''+' ] ]\n')
+    
+    coordinates = list()
+    for point in rec["coordinates"]:
+        
+        pointLL = translateToLL( contexts["The Home Depot"]["origin"],
+                                              { "x" : point[0], "y" : -point[1] },
+                                              contexts["The Home Depot"]["units"] )
+        coordinates.append( [ str(pointLL["latitude"]), str(pointLL["longitude"]) ] )
+
+    geoJSONMapFile.write( str( coordinates ) )
     geoJSONMapFile.write("] } }\n\n\n")
 
-    point1 = translateToPlot( plot["origin"],  point1ll, plot["units"], plot["scale"])
-    point2 = translateToPlot( plot["origin"],  point2ll, plot["units"], plot["scale"])
-    point3 = translateToPlot( plot["origin"],  point3ll, plot["units"], plot["scale"])
-    point4 = translateToPlot( plot["origin"],  point4ll, plot["units"], plot["scale"])
-
-
-    point1 = ( point1["x"], point1["y"] )
-    point2 = ( point2["x"], point2["y"] )
-    point3 = ( point3["x"], point3["y"] )
-    point4 = ( point4["x"], point4["y"] )
-
-    #point1 = translate(rec[0]-offset, rec[1], home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
-    #point2 = translate(rec[2]-offset, rec[3], home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
-    #point3 = translate(rec[4]-offset, rec[5], home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
-    #point4 = translate(rec[6]-offset, rec[7], home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
-    svg.write('<polygon points="'+str(point1[0])+','+
-                                  str(point1[1])+' '+
-                                  str(point2[0])+','+
-                                  str(point2[1])+' '+
-                                  str(point3[0])+','+
-                                  str(point3[1])+' '+
-                                  str(point4[0])+','+
-                                  str(point4[1])+''+'"')
-
-    midpoint = translateToLL( contexts["The Home Depot"]["origin"],
-                                              {"x" : (rec[0]+rec[2]+rec[4]+rec[6])/4, "y" : -(rec[1]+rec[3]+rec[5]+rec[7])/4},
+    midpoint_r = midpoint( rec["coordinates"])  
+    midpoint_LL = translateToLL( contexts["The Home Depot"]["origin"],
+                                              {"x" : midpoint_r[0], "y" : -midpoint_r[1]},
                                               contexts["The Home Depot"]["units"] )
-
-    midpoint = translateToPlot( plot["origin"],  midpoint, plot["units"], plot["scale"])
-    midpoint = (midpoint["x"],midpoint["y"] )
-
-
-    #midpoint = translate((rec[0]+rec[2]+rec[4]+rec[6])/4-offset, (rec[1]+rec[3]+rec[5]+rec[7])/4, home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
+    
+    centertable.write(rec["label"]+":"+str( midpoint_LL["latitude"]) +':'+str( midpoint_LL["longitude"]   )+"\n")
 
 
-    svg.write( ' fill="rgb'+department_colors[rec[9]]+'" stroke="black" stroke-width="1" />')
-    svg.write('<text x="'+str(  midpoint[0]-15) +'" y="'+str( midpoint[1]  )+'" font-size="9px">'+rec[8]+'</text>')
-
-    #output.write("  \"" + rec[8] + "\", ")
-    #output.write("  \"" + rec[9] + "\",")
-    #output.write("   { " + str(  (rec[0] +rec[2] + rec[4] + rec[6])//4 ) + ", " +
-    #                       str(  (rec[1]+rec[3]+rec[5]+rec[7])//4) + "}, \n")
-    #output.write("   { " + str(rec[0]) + ", " + str(rec[2]) + ", " + str(rec[4]) + ", " + str(rec[6]) + ", " +
-    #                       str(rec[1]) + ", " + str(rec[3]) + ", " + str(rec[5]) + ", " + str(rec[7]) + " },");
-    #output.write("'" +rec[10]+"'},\n")
-
-
-"""
-pp=list()
-pp = json.load(open("home_area.geojson"))["features"] + json.load(open("farm.geojson"))["features"]#+  json.load(open("grandpa_area.geojson"))["features"]
-
-pp = pp+ json.load(open("home_area.geojson"))["features"]
-#pp = list()
-
-svg.write("<g id=\"osm geo data\">")
-for feature in pp:
-    if feature["geometry"]["type"] == "MultiPolygon":
-        for polys in feature["geometry"]["coordinates"]:
-            for poly in polys:
-
-                svg.write('<polygon fill="none" stroke="#AAAAAA" stroke-width="10" class=\"geojson\" points="')
-                for coord in poly:
-                    point = translateToPlot( plot["origin"],  {"latitude":coord[1], "longitude" : coord[0] }, plot["units"], plot["scale"])
-                    svg.write(" " + str(point["x"]) + "," + str(point["y"]))
-                svg.write("\" />\n")
-
-
-    if feature["geometry"]["type"] == "Polygon":
-        for poly in feature["geometry"]["coordinates"]:
-                svg.write('<polygon fill="none" stroke="#AAAAAA" stroke-width="10" class=\"geojson\" points="')
-                for coord in poly:
-                    point = translateToPlot( plot["origin"],  {"latitude":coord[1], "longitude" : coord[0] }, plot["units"], plot["scale"])
-                    svg.write(" " + str(point["x"]) + "," + str(point["y"]))
-                svg.write("\" />\n")
-
-    if feature["geometry"]["type"] == "LineString":
-        line = feature["geometry"]["coordinates"]
-        for i in range(len(line) - 1):
-
-            point1 = translateToPlot( plot["origin"],  {"latitude":line[i][1], "longitude" : line[i][0] }, plot["units"], plot["scale"])
-            point2 = translateToPlot( plot["origin"],  {"latitude":line[i+1][1], "longitude" : line[i+1][0] }, plot["units"], plot["scale"])
-            svg.write('<line fill="none" stroke="#AAAAFF" stroke-width="10" class=\"geojson\" ')
-            svg.write(' x1=\"' + str(point1["x"]) + "\" ")
-            svg.write(' y1=\"' + str(point1["y"]) + "\" ")
-            svg.write(' x2=\"' + str(point2["x"]) + "\" ")
-            svg.write(' y2=\"' + str(point2["y"]) + "\" ")
-            svg.write("\" />\n")
-svg.write("</g>\n")
-svg.write("""
-
-
-""")
-
-"""
-
-
-centertable = open("table.txt","w")
-for rec in rectangles:
-    centertable.write(rec[8]+":"+str(  (rec[0] +rec[2] + rec[4] + rec[6])//4) +':'+str( (rec[1]+rec[3]+rec[5]+rec[7])//4   )+"\n")
 centertable.close()
 
 
@@ -301,11 +179,6 @@ for line in mapfile.readlines():
                                     str(linesplit[4]), department ) )
 
 
-for x in range(len(rectangles)):
-        rectangles[x] = rectangles[x]+(' ',)
-        for special in specials:
-            if rectangles[x][8] == special[0]:
-                rectangles[x] = rectangles[x][:-1]+(special[1],)
 
 
 departments = set()
@@ -382,14 +255,6 @@ for rec in rectangles:
     #point2 = translate(rec[2]-offset, rec[3], home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
     #point3 = translate(rec[4]-offset, rec[5], home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
     #point4 = translate(rec[6]-offset, rec[7], home_depot_origin_lat, home_depot_origin_long, home_depot_angle, "inch")
-    svg.write('<polygon points="'+str(point1[0])+','+
-                                  str(point1[1])+' '+
-                                  str(point2[0])+','+
-                                  str(point2[1])+' '+
-                                  str(point3[0])+','+
-                                  str(point3[1])+' '+
-                                  str(point4[0])+','+
-                                  str(point4[1])+''+'"')
 
 
 
@@ -400,20 +265,6 @@ for rec in rectangles:
     midpoint = translateToPlot( plot["origin"],  midpoint, plot["units"], plot["scale"])
     midpoint = (midpoint["x"],midpoint["y"] )
 
-    svg.write( ' fill="rgb'+department_colors[rec[9]]+'" stroke="black" stroke-width="1" />')
-    svg.write('<text x="'+str(  midpoint[0]-15) +'" y="'+str( midpoint[1]  )+'" font-size="9px">'+rec[8]+'</text>')
-
-    #output.write("  \"" + rec[8] + "\", ")
-    #output.write("  \"" + rec[9] + "\",")
-    #output.write("   { " + str(  (rec[0] +rec[2] + rec[4] + rec[6])//4 ) + ", " +
-    #                       str(  (rec[1]+rec[3]+rec[5]+rec[7])//4) + "}, \n")
-    #output.write("   { " + str(rec[0]) + ", " + str(rec[2]) + ", " + str(rec[4]) + ", " + str(rec[6]) + ", " +
-    #                       str(rec[1]) + ", " + str(rec[3]) + ", " + str(rec[5]) + ", " + str(rec[7]) + " },");
-    #output.write("'" +rec[10]+"'},\n")
-svg.write("""
-
-
-""")
 
 
 geoJSONMapFile.write("] }")
