@@ -1,5 +1,6 @@
 import math
 import json
+import re
 
 import contextorigins
 from contexttranslations import translateToLL, translateToPlot
@@ -93,8 +94,8 @@ def polygons_to_geoJSON_features ( Polygons, DepartmentColors ):
     return Features
 
 
-def polygons_to_table ( Polygons, Filename ):
-    centertable = open( Filename, "w")
+def polygons_to_table ( Polygons ):
+    centertable = list()
     for rec in rectangles:
 
         midpoint_r = midpoint( rec["coordinates"])  
@@ -102,8 +103,9 @@ def polygons_to_table ( Polygons, Filename ):
                                                   {"x" : midpoint_r[0], "y" : -midpoint_r[1]},
                                                   contexts["The Home Depot"]["units"] )
         
-        centertable.write(rec["label"]+":"+str( midpoint_LL["latitude"]) +':'+str( midpoint_LL["longitude"]   )+"\n")
-    centertable.close()
+        centertable.append( { "context" : rec["context"] , "label": rec["label"], "latitude":  midpoint_LL["latitude"], "longitude" : midpoint_LL["longitude"], 
+                             "altitude": contexts[ rec["context"]]["origin"]["altitude"] } )
+    return centertable
 
 
 
@@ -123,41 +125,45 @@ department_colors= {
                     "29": "(192,128,192)",
                     "30": "(255,192,128)" };
 JSONFeatures = polygons_to_geoJSON_features( rectangles, department_colors)
-polygons_to_table( rectangles, "table.txt" )
+CenterTable = polygons_to_table( rectangles ) 
 
 open("mapGEO.json", "w").write(
      json.dumps( { "type" : "FeatureCollection",
                   "features" : JSONFeatures }, indent=4 ) )
 
+def findInTable(bayName, context, table):
 
+    conversions = { "meter" : 1,
+                    "mm"    : 0.001,
+                    "inch"  : 0.0254 }
 
-def findInTable(bayName, context):
 
     if re.search("^-?[0-9]+,-?[0-9]+,-?[0-9]+$",bayName):
         bayNameNumbers = bayName.split(",")
-        return (int(bayNameNumbers[0]), int(bayNameNumbers[1]), int(bayNameNumbers[2]))
+
+        LL = translateToLL( contexts[ context ]["origin"],
+                                                  {"x" : int(bayNameNumbers[0]), "y" : -int(bayNameNumbers[1])},
+                                                  contexts["The Home Depot"]["units"] )
+        return (LL["latitude"],  LL["longitude"], contexts[context]["origin"]["altitude"] + int(bayNameNumbers[2]) * conversions[ contexts[ context ]["units"] ])
 
     if re.search("^-?[0-9]+,-?[0-9]+$",bayName):
         bayNameNumbers = bayName.split(",")
         return (int(bayNameNumbers[0]), int(bayNameNumbers[1]), 35)
 
-    if context == "The Home Depot":
-        table=DepotTable
-    if context == "Apartment":
-        table=open("table_apartment.txt","r").readlines()
     for l in table:
-        if (bayName).replace("\n","").replace("#","").replace("$","").replace("%","").split(",")[0].upper() in (l.split(":")[0]).upper().split(","):
-            if len(bayName.split(",")) == 1:
-                z=35
-                if "%" in bayName:
-                    z = (96+94+96)/3
-                if "#" in bayName:
-                    z = (171+171+171)/3
-                if "$" in bayName:
-                    z = (223+224+223)/3
-            else:
-                z = int(bayName.split(",")[1])
-            return ( int(l.split(":")[1]), int(l.split(":")[2]), z)
+        if l["context"] == context:
+            if (bayName).replace("\n","").replace("#","").replace("$","").replace("%","").split(",")[0].upper() == l["label"]:
+                if len(bayName.split(",")) == 1:
+                    z=35
+                    if "%" in bayName:
+                        z = (96+94+96)/3
+                    if "#" in bayName:
+                        z = (171+171+171)/3
+                    if "$" in bayName:
+                        z = (223+224+223)/3
+                else:
+                    z = int(bayName.split(",")[1])
+                return ( l["latitude"], l["longitude"], l["altitude"] + z * conversions[ contexts[ l["context"] ]["units"] ])
     print( "Not found in table: {} : {}".format(bayName, context))
 
     pp=open("notintable.txt", "a")
@@ -165,5 +171,27 @@ def findInTable(bayName, context):
     pp.close()
 
     return tuple()
+
+pointXYZDepotTable = {}
+def resolveLocationLL(locationLabel, context, table):
+    if (locationLabel, context) in pointXYZDepotTable.keys():
+        return pointXYZDepotTable[locationLabel]
+    lat=0
+    lon=0
+    alt=0
+    n=0
+    for part in locationLabel.split(" "):
+        loc=findInTable(part, context, table)
+        if len(loc) == 3:
+            n=n+1
+            lat=lat+loc[0]
+            lon=lon+loc[1]
+            alt=alt+loc[2]
+    if n > 0:
+        LL = (lat/n, lon/n, alt/n)
+        pointXYZDepotTable[ (locationLabel, context)] = LL
+        return LL
+    else:
+        return ()
 
 
