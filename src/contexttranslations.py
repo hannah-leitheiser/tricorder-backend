@@ -2,6 +2,11 @@ import math
 
 from contextorigins import contexts
 
+
+conversions = { "meter" : 1,
+                "mm"    : 0.001,
+                "inch"  : 0.0254 }
+
 def toRadians(num):
     return (num/360)*2*math.pi
 
@@ -14,20 +19,19 @@ def toRadians(num):
 #   / z
 
 
+
+
 def translateToLL(origin, point, unit):
     #map points to 2-space meters
 
-    conversions = { "meter" : 1,
-                    "mm"    : 0.001,
-                    "inch"  : 0.0254 }
-
+    
     if "z" not in point.keys():
         point["z"] = 0.0
 
     altitude = point["z"] * conversions[unit] + origin["altitude"]
 
     point = { "x": point["x"] * conversions[unit],
-              "y": point["y"] * conversions[unit],
+              "y": -point["y"] * conversions[unit],
               "z": point["z"] * conversions[unit] }
 
     #rotate by rotation
@@ -100,10 +104,6 @@ def translateToLL(origin, point, unit):
 def translateToPlot(origin, point, unit, scale):
     #map point to 3-space Earth
 
-    conversions = { "meter" : 1,
-                    "mm"    : 0.001,
-                    "inch"  : 0.0254 }
-
     #Earth center
     earthRadius=6371008.7714
 
@@ -155,52 +155,4 @@ def translateToPlot(origin, point, unit, scale):
               "y" : -(point["y"] / conversions[unit]) * scale }
 
     return  point
-
-
-def translate(x, y, lat_origin, long_origin, angle, unit): 
-    y=-y
-    x=x
-    earth_radius=6378000 #meter 
-    unit_conversion = {  "inch" : 0.0254, 
-                         "meter": 1.0,
-                         "mm"   : 0.001 } 
-    factor = unit_conversion[unit] 
-    angle_radians = 2 * math.pi * (angle / 360) 
- 
-    new_lat = lat_origin + 360* (  (  y*factor*math.cos(angle_radians) + x*factor*math.sin(angle_radians)   )/(earth_radius * 2 * math.pi)) 
-    new_lat_radians = 2 * math.pi * (new_lat / 360) 
-    new_long = long_origin + 360 * (  (-y*factor*math.sin(angle_radians) + x*factor*math.cos(angle_radians)))/(earth_radius * math.cos(new_lat_radians)* 2 * math.pi) 
-    
-    plot_y = -plot_scale * (2 * math.pi * (new_lat - plot_origin_lat) / 360) * earth_radius * 2 * math.pi
-    plot_x = plot_scale * (2 * math.pi * (new_long - plot_origin_long) / 360) * math.cos(new_lat_radians) * earth_radius * 2 * math.pi
-
-    plot_rotation_radians = (plot_rotation / 360)*2*math.pi
-    plot_x1 = math.cos(plot_rotation_radians)*plot_x - math.sin(plot_rotation_radians)*plot_y
-    plot_y1 = math.sin(plot_rotation_radians)*plot_x + math.cos(plot_rotation_radians)*plot_y
-
-
-    return (plot_x1, plot_y1)
-
-
-
-
-
-
-
-
-def translate_ll(x, y, lat_origin, long_origin, angle, unit): 
-    y=-y
-    x=x
-    earth_radius=6378000 #meter 
-    unit_conversion = {  "inch" : 0.0254, 
-                         "meter": 1.0,
-                         "mm"   : 0.001 } 
-    factor = unit_conversion[unit] 
-    angle_radians = 2 * math.pi * (angle / 360) 
- 
-    new_lat = lat_origin + 360* (  (  y*factor*math.cos(angle_radians) + x*factor*math.sin(angle_radians)   )/(earth_radius * 2 * math.pi)) 
-    new_lat_radians = 2 * math.pi * (new_lat / 360) 
-    new_long = long_origin + 360 * (  (-y*factor*math.sin(angle_radians) + x*factor*math.cos(angle_radians)))/(earth_radius * math.cos(new_lat_radians)* 2 * math.pi) 
-    
-    return (new_lat, new_long)
 

@@ -72,7 +72,7 @@ def map_file_to_polygons( filename, context ):
 def polygons_to_geoJSON_features ( Polygons, DepartmentColors ):
 
     Features = list()
-    for rec in rectangles:
+    for rec in Polygons:
         Feature = { "type"       : "Feature",
                     "properties" : {
                         "fill"   : "rgb"+department_colors[rec["department"]],
@@ -84,7 +84,7 @@ def polygons_to_geoJSON_features ( Polygons, DepartmentColors ):
         for point in rec["coordinates"]:
             
             pointLL = translateToLL( contexts[ rec["context"] ]["origin"],
-                                                  { "x" : point[0], "y" : -point[1] },
+                                                  { "x" : point[0], "y" : point[1] },
                                                   contexts[ rec["context"] ]["units"] )
             coordinates.append( [ pointLL["longitude"], pointLL["latitude"] ] )
 
@@ -94,14 +94,65 @@ def polygons_to_geoJSON_features ( Polygons, DepartmentColors ):
     return Features
 
 
+def polygons_to_svg ( Polygons, DepartmentColors ):
+    svg = dict()
+    ranges = dict()
+
+    for rec in Polygons:
+        if rec["context"] not in svg:
+            svg[ rec["context"] ] = ""
+            ranges[ rec["context"] ] = { "max X" : -1e100, "max Y" : -1e100, "min X" : 1e100, "min Y": 1e100 }
+
+
+        svgAdd = '<polygon points="'
+
+        xs = []
+        ys = []
+        pointSet = set()
+        for point in rec["coordinates"]:
+            if point not in pointSet:
+                pointSet.add( point)
+                if point[0] > ranges[ rec["context"] ]["max X"] :
+                    ranges[ rec["context"] ]["max X"] = point[0]
+                if point[0] < ranges[ rec["context"] ]["min X"] :
+                    ranges[ rec["context"] ]["min X"] = point[0]
+                if point[1] > ranges[ rec["context"] ]["max Y"] :
+                    ranges[ rec["context"] ]["max Y"] = point[1]
+                if point[1] < ranges[ rec["context"] ]["min Y"] :
+                    ranges[ rec["context"] ]["min Y"] = point[1]
+                xs.append( point[0])
+                ys.append( point[1])
+                svgAdd+= str(point[0]) + "," + str(point[1]) + " "
+
+        svgAdd += '" fill="rgb'+DepartmentColors[ rec["department"] ]+'" stroke="black" stroke-width="1" />'
+
+        if rec["context"] == "Apartment":
+            fontSize = "100px"
+        else:
+            fontSize = "9px"
+        svgAdd += '<text text-anchor="middle" dominant-baseline="middle" x="'+str( sum(xs)/len(xs)  -0) +'" y="'+str( sum(ys)/len(ys) +0 )+'" font-size="'+fontSize+'">'+rec["label"]+'</text>'
+        svg[ rec["context"] ] += svgAdd + "\n\n"
+    
+    margin = 20
+    for context in svg.keys():
+        if context == "Apartment":
+            percent = "100"
+        else:
+            percent = "100"
+        svg[ context] = '<svg width="'+percent+'%" height="'+percent+'%" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="' + str(ranges[context]["min X"]-margin) + " " + str( ranges[context]["min Y"]-margin) + " " + str((ranges[context]["max X"]-ranges[context]["min X"])+margin*2) + " " + str((ranges[context]["max Y"] - ranges[context]["min Y"])+margin*2) + '" id="map">\n\n' + svg[context] + '\n</svg>'
+
+    return svg
+
+
+
 def polygons_to_table ( Polygons ):
     centertable = list()
     for rec in rectangles:
 
         midpoint_r = midpoint( rec["coordinates"])  
         midpoint_LL = translateToLL( contexts[ rec["context"] ]["origin"],
-                                                  {"x" : midpoint_r[0], "y" : -midpoint_r[1]},
-                                                  contexts["The Home Depot"]["units"] )
+                                                  {"x" : midpoint_r[0], "y" : midpoint_r[1]},
+                                                  contexts[ rec["context"]  ]["units"] )
         
         centertable.append( { "context" : rec["context"] , "label": rec["label"], "latitude":  midpoint_LL["latitude"], "longitude" : midpoint_LL["longitude"], 
                              "altitude": contexts[ rec["context"]]["origin"]["altitude"] } )
@@ -125,9 +176,14 @@ department_colors= {
                     "29": "(192,128,192)",
                     "30": "(255,192,128)" };
 JSONFeatures = polygons_to_geoJSON_features( rectangles, department_colors)
+svgMap =  polygons_to_svg( rectangles, department_colors) 
+for context in svgMap.keys():
+    f = open( context + "_map.svg", "w")
+    f.write( svgMap[context] )
+    f.close()
 CenterTable = polygons_to_table( rectangles ) 
 
-open("mapGEO.json", "w").write(
+open("../tricorder-backend-map/data/mapGEO.json", "w").write(
      json.dumps( { "type" : "FeatureCollection",
                   "features" : JSONFeatures }, indent=4 ) )
 
@@ -142,13 +198,17 @@ def findInTable(bayName, context, table):
         bayNameNumbers = bayName.split(",")
 
         LL = translateToLL( contexts[ context ]["origin"],
-                                                  {"x" : int(bayNameNumbers[0]), "y" : -int(bayNameNumbers[1])},
-                                                  contexts["The Home Depot"]["units"] )
-        return (LL["latitude"],  LL["longitude"], contexts[context]["origin"]["altitude"] + int(bayNameNumbers[2]) * conversions[ contexts[ context ]["units"] ])
+                                                  {"x" : int(bayNameNumbers[0]), "y" : int(bayNameNumbers[1]),"z" : int(bayNameNumbers[2]) },
+                                                  contexts[ context ]["units"] )
+        return LL
 
     if re.search("^-?[0-9]+,-?[0-9]+$",bayName):
         bayNameNumbers = bayName.split(",")
-        return (int(bayNameNumbers[0]), int(bayNameNumbers[1]), 35)
+
+        LL = translateToLL( contexts[ context ]["origin"],
+                                                  {"x" : int(bayNameNumbers[0]), "y" : int(bayNameNumbers[1]),"z" : 35 },
+                                                  contexts[ context ]["units"] )
+        return LL
 
     for l in table:
         if l["context"] == context:
@@ -163,7 +223,7 @@ def findInTable(bayName, context, table):
                         z = (223+224+223)/3
                 else:
                     z = int(bayName.split(",")[1])
-                return ( l["latitude"], l["longitude"], l["altitude"] + z * conversions[ contexts[ l["context"] ]["units"] ])
+                return { "latitude":l["latitude"], "longitude":l["longitude"], "altitude":l["altitude"] + z * conversions[ contexts[ l["context"] ]["units"] ] }
     print( "Not found in table: {} : {}".format(bayName, context))
 
     pp=open("notintable.txt", "a")
@@ -175,7 +235,7 @@ def findInTable(bayName, context, table):
 pointXYZDepotTable = {}
 def resolveLocationLL(locationLabel, context, table):
     if (locationLabel, context) in pointXYZDepotTable.keys():
-        return pointXYZDepotTable[locationLabel]
+        return pointXYZDepotTable[ (locationLabel, context) ]
     lat=0
     lon=0
     alt=0
@@ -184,9 +244,9 @@ def resolveLocationLL(locationLabel, context, table):
         loc=findInTable(part, context, table)
         if len(loc) == 3:
             n=n+1
-            lat=lat+loc[0]
-            lon=lon+loc[1]
-            alt=alt+loc[2]
+            lat=lat+loc["latitude"]
+            lon=lon+loc["longitude"]
+            alt=alt+loc["altitude"]
     if n > 0:
         LL = (lat/n, lon/n, alt/n)
         pointXYZDepotTable[ (locationLabel, context)] = LL
