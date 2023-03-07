@@ -6,7 +6,7 @@ contexts = { "The Home Depot" : { "origin" : { "latitude"  :  44.96564745662645,
         "Apartment" : { "origin" : { "latitude"  :  44.9765639,
                                      "longitude" : -93.353506,
                                       "angle"    :   0,
-                                      "altitude" : 0 },
+                                      "altitude" : 250 },
                                   "units":"mm"} 
 
 

@@ -10,7 +10,7 @@ def startReadingData():
     global currentDataFile
     dataFileList_ = os.listdir("data_file_library/")
     for f in dataFileList_:
-        if "unsorted" not in f:
+        if "unsorted" not in f and True:
             dataFileList.append("data_file_library/"+f)
     dataFileList = sorted(dataFileList)
     currentDataFile = dataFileList[0]
