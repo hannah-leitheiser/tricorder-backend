@@ -16,7 +16,7 @@ maxFreq = dict()
 checkForBadContext = True
 
 while(point != dict()):
-    if True and float(point["timestamp"]) > newEquipDate: 
+    if True: 
         GPSPoints = list()
         name = ""
         context = ""
@@ -25,7 +25,7 @@ while(point != dict()):
                 name = subpoint["data"][0]["label"]
                 context = subpoint["data"][0]["context"]
 
-        if context == "The Home Depot":
+        if context == "The Home Depot" and float(point["timestamp"]) > newEquipDate:
             if checkForBadContext:
                 for subpoint in point["subpoints"]: 
                     if "wifi scan" == subpoint["measurement type"] and len(subpoint["data"]) > 0:

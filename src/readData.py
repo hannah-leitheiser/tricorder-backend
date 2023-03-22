@@ -1,5 +1,8 @@
 import os
 import json
+import scipy.stats
+
+data_file_library_directory = "/home/hannah/location_finder/data_file_library/"
 
 dataFile = None
 dataFileList = []
@@ -8,10 +11,10 @@ def startReadingData():
     global dataFileList
     global dataFile
     global currentDataFile
-    dataFileList_ = os.listdir("data_file_library/")
+    dataFileList_ = os.listdir(data_file_library_directory)
     for f in dataFileList_:
-        if "unsorted" not in f and True:
-            dataFileList.append("data_file_library/"+f)
+        if "unsorted" not in f and ("2022" in f or "2023" in f):
+            dataFileList.append(data_file_library_directory+f)
     dataFileList = sorted(dataFileList)
     currentDataFile = dataFileList[0]
     dataFile = open(dataFileList.pop(0), "r")
@@ -29,6 +32,7 @@ def readNextData():
         if line == "":
             if len(dataFileList) > 0:
                 currentDataFile = dataFileList[0]
+                print(currentDataFile)
                 dataFile = open(dataFileList.pop(0), "r")
                 line = dataFile.readline()
             else:
@@ -43,7 +47,6 @@ def readNextData():
             for key in floatKeys:
                 if key in d.keys():
                     d[key] = float(d[key])
-
 
     return data
 

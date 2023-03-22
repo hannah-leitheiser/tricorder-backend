@@ -4,17 +4,7 @@ import datetime
 import pytz
 from metar import Metar
 import csv
-
-newMapDate = 1639900000
-newEquipDate = 1658462830
-
-startReadingData()
-point = readNextData()
-
-locationList = dict()
-
-maxFreq = dict()
-checkForBadContext = True
+import geopy.distance 
 
 def altitude(pressure_actual, pressure_reference, height_reference, temperature):
     temperature = 288.15
@@ -29,7 +19,6 @@ def altitude(pressure_actual, pressure_reference, height_reference, temperature)
 
 pressure = list()
 reference = list()
-gps      = open("gps.txt", "w")
 
 # Function to decode METAR data
 def decode_metar(metar_str):
@@ -78,81 +67,11 @@ for t in presData.keys():
     presData[t]["p"] = sum(presData[t]["p"]) / len(presData[t]["p"])
     presData[t]["t"] = sum(presData[t]["t"]) / len(presData[t]["t"])
 
-alt = list()
+def altitudeFromSubpoint( timestamp, pressure, latitude, longitude ):
+    distance = geopy.distance.geodesic((latitude, longitude), (44.9, -93.3)).m
+    if distance < 50000:
+        t = timestamp // 300
+        if t in presData:
+            return altitude( pressure, presData[t]["p"], 0, presData[t]["t"] )
+    return None
 
-
-colors = { "Pixel 3 XL" : (0.7,0,0),
-           "Pixel 4"    : (0.5,0,0),
-           "Pixel 3 XLg" : (0, 0.8,0),
-           "Pixel 4g"    : (0, 0.3, 0),
-           "BMP390"     : (1,0,0),
-           "ZED-F9Pg"    : (0, 0.5, 0),
-           "NEO-M9Ng"    : (0, 0.7, 0),
-           "GT-U7g"      : (0,1,0),
-           "specified"        : (0,0,1) }
-
-while(point != dict() and len(pressure) < 10000000):
-    for subpoint in point["subpoints"]:
-        if subpoint["measurement type"] == "location - gps" and "accuracy, vertical" in subpoint["data"][0] and "altitude" in subpoint["data"][0] and float(subpoint["data"][0]["accuracy, vertical"]) < 12.0:
-            s= str(subpoint["timestamp"]) + "," + subpoint["source"] + "," + str(subpoint["data"][0]["altitude"]) +"," + str( subpoint["data"][0]["accuracy, vertical"])
-            alt.append( ( subpoint["timestamp"], subpoint["source"]+"g", subpoint["data"][0]["altitude"]))
-            #print(s)
-            if subpoint["source"]+"g" not in colors:
-                exit()
-            gps.write(s+"\n")
-    
-        if subpoint["measurement type"] == "specified location":
-            name = subpoint["data"][0]["label"]
-            context = subpoint["data"][0]["context"]
-            location = resolveLocationLL( name, context, CenterTable)
-            if context == "Apartment":
-                uncert = 0.1
-            else:
-                uncert = 0.5
-            s= str( subpoint["timestamp"])+",specified,"+str( location[2])+","+str( uncert)
-            gps.write(s+"\n")
-            alt.append( ( subpoint["timestamp"], "specified", location[2]))
-            print(s)
-        if subpoint["measurement type"] == "pressure":
-            s= str( subpoint["timestamp"]) + "," + str(subpoint["source"]) + "," + str(subpoint["data"][0]["Value"])
-            pressure.append( (subpoint["timestamp"], subpoint["source"], subpoint["data"][0]["Value"] ) )
-            #print(s)
-        if subpoint["measurement type"] == "altimeter":
-            s= str( subpoint["timestamp"]) + "," + str(subpoint["source"]) + "," + str(subpoint["data"][0]["pressure"])
-            pressure.append( (subpoint["timestamp"], subpoint["source"], subpoint["data"][0]["pressure"] ) )
-            #print(s)
-
-    point = readNextData()
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-x = list()
-y = list()
-color = list()
-r=""
-for p in pressure:
-    if p[0] > 1676872800 and p[0] < 1676872800 + 86400*2:
-
-        x.append(p[0] / 86400)
-        t = p[0]//300
-        y.append( altitude(float(p[2]), presData[t]["p"],0, presData[t]["t"]  ))
-        if p[1] in colors:
-            color.append( colors[ p[1] ] )
-        else:
-            print(p[1])
-            exit()
-
-for p in alt:
-    if p[0] > 1676872800 and p[0] < 1676872800 + 86400*2:
-
-        x.append(p[0] / 86400)
-        y.append( p[2] )
-        if p[1] in colors:
-            color.append( colors[ p[1] ] )
-        else:
-            print(p[1])
-            exit()
-
-plt.scatter(x, y, c=color, s=0.05)
-plt.show()

@@ -1,13 +1,17 @@
-contexts = { "The Home Depot" : { "origin" : { "latitude"  :  44.96564745662645,
-                                               "longitude" : -93.35290474257968,
-                                               "altitude"  : 254.31905388207983,
+contexts = { "The Home Depot" : { "origin" : { "latitude"  :  44.965637,
+                                               "longitude" : -93.352900,
+                                               "altitude"  : 250.59900,
                                                "angle"     : -39 } ,
-                                  "units":"inch"},
-        "Apartment" : { "origin" : { "latitude"  :  44.9765639,
-                                     "longitude" : -93.353506,
+                                  "units":"inch",
+                                  "accuracy, horizontal" : 0.5,
+                                  "accuracy, vertical"   : 0.5},
+        "Apartment" : { "origin" : { "latitude"  :  44.976594,
+                                     "longitude" : -93.353482,
                                       "angle"    :   0,
-                                      "altitude" : 250 },
-                                  "units":"mm"} 
+                                      "altitude" : 240.492 },
+                                  "units":"mm",
+                                  "accuracy, horizontal" : 0.1,
+                                  "accuracy, vertical"   : 0.1} 
 
 
                                   }

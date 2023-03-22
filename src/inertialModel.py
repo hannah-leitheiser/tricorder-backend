@@ -39,17 +39,21 @@ def NorthVector( latitude, longitude, altitude ):
 
 
 class inertialModel:
-    parameters = None
-    timeBias = None
-    functionsForProbability = list()
-    simpleData = list()
-    times = list()
-    sigmaVertical = list()
-    sigmaHorizontal = list()
-    sigmaVelocity = list()
-    uncertainties = None
-    stationary = False
+    modelLatLonSimplified = True
 
+    def __init__(self):
+        self.parameters = None
+        self.timeBias = None
+        self.functionsForProbability = list()
+        self.simpleData = list()
+        self.times = list()
+        self.sigmaVertical = list()
+        self.sigmaHorizontal = list()
+        self.sigmaVelocity = list()
+        self.uncertainties = None
+        self.stationary = False
+        self.meters_per_lat = 1
+        self.meters_per_lon = 1
 
     def inertialFunctionPrediction( self, time, derivativeDegree = 0 ):
         if self.parameters == None:
@@ -66,20 +70,32 @@ class inertialModel:
                 for d in range(derivativeDegree):
                     factor = factor * power
                     power = power - 1
+                    if power < 0:
+                        power = 0
+                        factor = 0
                 result = result + factor*time**power
             ret.append(float(result))
         return ret
 
     def inertialFunctionPredictionLatLonAlt ( self, time ):
-        trans = pyproj.Transformer.from_crs( "+proj=geocent", pyproj.crs.CRS("WGS84"))
         p3d = self.inertialFunctionPrediction(time)
+        if self.modelLatLonSimplified:
+            return p3d
+        trans = pyproj.Transformer.from_crs( "+proj=geocent", pyproj.crs.CRS("WGS84"))
         return trans.transform( p3d[0], p3d[1], p3d[2] )
 
     def probForAddMeasurementLatLon( self, time, latitude, longitude, uncertaintyHorizontal):
         p = self.inertialFunctionPredictionLatLonAlt( time )
-        predictedLatLong = (p[0], p[1])
-        distanceHorizontal = geopy.distance.geodesic((latitude, longitude), predictedLatLong).m
-        return -0.5 * ((distanceHorizontal / uncertaintyHorizontal)**2 )
+        if p == None:
+            return 0
+        else:
+            if self.modelLatLonSimplified:
+                distanceHorizontal =  (( (latitude - p[0] ) * self.meters_per_lat) ** 2 +
+                                       ( (longitude - p[1]) * self.meters_per_lon) ** 2 ) 
+            else:
+                predictedLatLong = (p[0], p[1])
+                distanceHorizontal = geopy.distance.geodesic((latitude, longitude), predictedLatLong).m
+            return -0.5 * ((distanceHorizontal / uncertaintyHorizontal)**2 )
 
     def addMeasurementLatLon( self, time, latitude, longitude, uncertaintyHorizontal):
         self.functionsForProbability.append( lambda s : s.probForAddMeasurementLatLon(time, latitude, longitude, uncertaintyHorizontal ) )
@@ -89,11 +105,14 @@ class inertialModel:
 
     def probForAddMeasurementLatLonAlt( self, time, latitude, longitude, altitude, uncertaintyHorizontal, uncertaintyVertical):
         p = self.inertialFunctionPredictionLatLonAlt( time )
-        predictedLatLong = (p[0], p[1])
         predictedAlt     = p[2]
-        distanceHorizontal = geopy.distance.geodesic((latitude, longitude), predictedLatLong).m
         distanceVertical = abs( altitude - predictedAlt)
-        #return guassianPDF( distanceHorizontal, uncertaintyHorizontal) * guassianPDF( distanceVertical, uncertaintyVertical)
+        if self.modelLatLonSimplified:
+            distanceHorizontal =  (( (latitude - p[0] ) * self.meters_per_lat) ** 2 +
+                                   ( (longitude - p[1]) * self.meters_per_lon) ** 2 ) 
+        else:
+            predictedLatLong = (p[0], p[1])
+            distanceHorizontal = geopy.distance.geodesic((latitude, longitude), predictedLatLong).m
         return -0.5 * ((distanceHorizontal / uncertaintyHorizontal)**2 + (distanceVertical / uncertaintyVertical ) ** 2)
 
     def addMeasurementLatLonAlt( self, time, latitude, longitude, altitude, uncertaintyHorizontal, uncertaintyVertical ):
@@ -106,6 +125,10 @@ class inertialModel:
 
     def specifyStationary( self ):
         self.stationary = True
+        if self.parameters != None and len(self.parameters[0]) != 1:
+            for i in range(len(self.parameters)):
+                self.parameters[i] = self.parameters[i][0:1]
+            print("Stationary parameters:" + str(self.parameters))
 
     def probForAddMeasurementAlt( self, time, altitude, uncertaintyVertical):
         p = self.inertialFunctionPredictionLatLonAlt( time )
@@ -121,12 +144,17 @@ class inertialModel:
         return
 
 
-    def probForAddMeasurementVelocity( self, time, velocityDown, velocityEast, velocityNorth, uncertainty):
-        p = self.inertialFunctionPredictionLatLonAlt( time  )
+    def probForAddMeasurementVelocity( self, time, velocityDown, velocityEast, velocityNorth, uncertainty):        
         p_v = self.inertialFunctionPrediction( time, 1 )
-        predVelDown = numpy.dot( p_v, DownVector(p[0], p[1], p[2]))
-        predVelEast = numpy.dot( p_v, EastVector(p[0], p[1], p[2]))
-        predVelNorth = numpy.dot( p_v, NorthVector(p[0], p[1], p[2]))
+        if self.modelLatLonSimplified:
+            predVelDown = -p_v[2]
+            predVelEast = p_v[1] * self.meters_per_lon
+            predVelNorth = p_v[0] * self.meters_per_lat
+        else:
+            p = self.inertialFunctionPredictionLatLonAlt( time  )
+            predVelDown = numpy.dot( p_v, DownVector(p[0], p[1], p[2]))
+            predVelEast = numpy.dot( p_v, EastVector(p[0], p[1], p[2]))
+            predVelNorth = numpy.dot( p_v, NorthVector(p[0], p[1], p[2]))
 
 
         #print (  ("velocity", (predVelDown - velocityDown),
@@ -152,6 +180,8 @@ class inertialModel:
 
 
     def computeTstatistic( self ):
+        if len(self.functionsForProbability) == 0 or self.parameters == None:
+            return None
         t = 0
         for fun in self.functionsForProbability:
             t += (fun(self) / -0.5) ** 0.5
@@ -161,13 +191,17 @@ class inertialModel:
         self.parameters[vec_index1][vec_index2] = x
         return -self.computeProb()
 
-    def optimizeParameters( self, recompute = False ):
+    def optimizeParameters( self, recompute = False, quick=False ):
         if self.parameters == None or recompute:
+            if len(self.simpleData) == 0:
+                return None
             self.times = sorted(self.times)
+            print((self.times[0], self.times[-1]))
             self.timeBias = (self.times[-1] + self.times[0]) / 2
 
     
-            trans = pyproj.Transformer.from_crs( pyproj.crs.CRS("WGS84"), "+proj=geocent")
+            if not self.modelLatLonSimplified:
+                trans = pyproj.Transformer.from_crs( pyproj.crs.CRS("WGS84"), "+proj=geocent")
             points_3D_X = []
             points_3D_Y = []
             points_3D_Z = []
@@ -175,8 +209,11 @@ class inertialModel:
             points_3D_Time = []
 
 
-            for p in self.simpleData:
-                p_t = trans.transform(p[1], p[2], p[3])
+            for p in self.simpleData:                
+                if self.modelLatLonSimplified:
+                    p_t = (p[1], p[2], p[3])
+                else:
+                    p_t = trans.transform(p[1], p[2], p[3])
                 #print(p_t)
                 points_3D_X.append( p_t[0])
                 points_3D_Y.append( p_t[1])
@@ -193,29 +230,40 @@ class inertialModel:
             polyFitZ, cov3 = numpy.polyfit( points_3D_Time, points_3D_Z, DOF, w=points_3D_Accuracy, cov='unscaled' )
             if len(cov1) > 1:
                 self.sigmaVelocity.append(  numpy.sqrt(numpy.diag(cov1))[0] )
-            self.parameters =  [ (list(reversed(list(polyFitX))) + [0,0])[:2], (list(reversed(list(polyFitY))) + [0,0])[:2], 
-                        (list(reversed(list(polyFitZ))) + [0,0])[:2] ]
+            self.parameters =  [ (list(reversed(list(polyFitX)))), (list(reversed(list(polyFitY)))), 
+                        (list(reversed(list(polyFitZ)))) ]
+            #print(self.parameters)
+            if self.modelLatLonSimplified:
+                meanPosition = self.inertialFunctionPredictionLatLonAlt(self.timeBias)
+                #print( meanPosition )
+                delta = 0.00001
+                distanceNorth = geopy.distance.geodesic((meanPosition[0], meanPosition[1]), (meanPosition[0]+delta, meanPosition[1])).m
+                distanceEast = geopy.distance.geodesic((meanPosition[0], meanPosition[1]), (meanPosition[0], meanPosition[1]+delta)).m
+                self.meters_per_latitude = distanceNorth / delta
+                self.meters_per_longitude = distanceEast / delta
         
-        iter = 0
-        paraChange = True
-        while( iter < 3 and paraChange ):
-            iter = iter + 1
-            print( (self.timeBias, self.parameters))
-            oldPara = self.parameters
-            for v in range(len(self.parameters)):
-                for t in range(len(self.parameters[v])):
-                    parameterInitial = self.parameters[v][t]
-                    self.parameters[v][t] = float(minimize ( lambda x, self, v, t : self.computeProbForOptimizer(x, v, t), parameterInitial, (self, v, t)).x)   
-            if self.parameters == oldPara:
-                paraChange = False
+        if quick == False:
+            iter = 0
+            paraChange = True
+            while( iter < 3 and paraChange ):
+                iter = iter + 1
+                print( (self.timeBias, self.parameters))
+                oldPara = self.parameters
+                for v in range(len(self.parameters)):
+                    for t in range(len(self.parameters[v])):
+                        parameterInitial = self.parameters[v][t]
+                        self.parameters[v][t] = float(minimize ( lambda x, self, v, t : self.computeProbForOptimizer(x, v, t), parameterInitial, (self, v, t), method='Nelder-Mead').x)   
+                if self.parameters == oldPara:
+                    paraChange = False
         return self.parameters
 
     def computeUncertainty(self, recompute = False):
         if self.uncertainties == None or recompute:
         
             t = self.computeTstatistic()
-            t_goal = scipy.stats.t.ppf( 0.95, df=t[1]-1)
-            print( "t: {:}, t_goal: {:}".format(t[0], t_goal))
+            if t != None:
+                t_goal = scipy.stats.t.ppf( 0.95, df=t[1]-1)
+                print( "t: {:}, t_goal: {:}".format(t[0], t_goal))
 
             uncertainties = dict()
             for measure in [ ("horizontal",self.sigmaHorizontal), ("vertical",self.sigmaVertical), ("velocity",self.sigmaVelocity) ]:
@@ -228,6 +276,8 @@ class inertialModel:
                     uncertainties[ measure[0] ] = 0
 
 
+            if len(self.times) == 0:
+                return None
             self.times = sorted(self.times)
             duration = (self.times[-1] - self.times[0])/2
             velocityAdd = duration * uncertainties["velocity"]
@@ -240,11 +290,13 @@ class inertialModel:
 
     def saveToFile(self, timestamp):
         t = datetime.datetime.fromtimestamp( timestamp, datetime.timezone.utc)
-        print("Writing "+ t.isoformat() )
         fileName = "{:04}-{:02}-{:02}.txt".format( t.year, t.month, t.day)
 
         outputFile = open("data_file_library_inertial_models/" + fileName,"a")
-        data = {"timestamp" : timestamp, "parameters" : self.optimizeParameters(), "time bias" : self.timeBias, "uncertainties" : self.computeUncertainty() }
+        if self.parameters == None:
+            self.optimizeParameters()
+        data = {"timestamp" : timestamp, "parameters" : self.parameters, "time bias" : self.timeBias, "uncertainties" : self.computeUncertainty() }
+        print(data)
         outputFile.write(json.dumps(data,indent=3,sort_keys=True))
         outputFile.write("\n" + "*"*32 + "\n")
         outputFile.close()
