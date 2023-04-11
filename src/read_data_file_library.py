@@ -2,7 +2,7 @@ import os
 import json
 import scipy.stats
 
-data_file_library_directory = "/media/hannah/Tricorder/data_file_library/"
+data_file_library_directory = "/media/hannah/Tricorder/tricorder/tricorder-backend/data_file_library/"
 
 dataFile = None
 dataFileList = []

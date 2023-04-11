@@ -6,7 +6,7 @@ import json
 import statistics
 import os
 
-
+dataDirectory = "/media/hannah/Tricorder/tricorder/tricorder-backend-map/data/"
 
 deviceDirectories = []
 for dd in os.listdir("."):

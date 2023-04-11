@@ -1,9 +1,11 @@
-from generatemap import *
-from readData import *
+from create_map import *
+from read_data_file_library import *
 import datetime
 from pytz import timezone
-from inertialModel import *
-from measurementGrid import * 
+from inertial_model import *
+from measurement_grid import * 
+
+dataDirectory = "/media/hannah/Tricorder/tricorder/tricorder-backend-map/data/" 
 
 newMapDate = 1639900000
 newEquipDate = 1658462830
@@ -26,16 +28,16 @@ while(point != dict()):
     if iModel.readFromFile(point["timestamp"]):
         for x in range(point["interval"]):
             loc = iModel.inertialFunctionPredictionLatLonAlt( point["timestamp"] + x )
-            if loc and iModel.computeUncertainty()["horizontal"] < 10:
+            if loc and iModel.computeUncertainty():
                 seconds = seconds + 1
-                if loc[0] > 50:
-                    print("lat high")
-                    print(loc)
-                    print(point["timestamp"])
-                    print(x)
-                    print(iModel.parameters)
-                    exit()
-                addToGrid( loc[0], loc[1], "Histogram", 1)
+                #if loc[0] > 50:
+                #    print("lat high")
+                #    print(loc)
+                #    print(point["timestamp"])
+                #    print(x)
+                #    print(iModel.parameters)
+                #    exit()
+                addToGrid( loc[0], loc[1], "Histogram", 1, iModel.computeUncertainty()["horizontal"])
         measurements = ["CO2","TVOC", "Part>0.3", "Part>0.5", "Part>1.0",
                                     "Part>1.0", "Part>2.5", "Part>5.0", "Part>10.0", "eCO2"]
         
@@ -43,8 +45,8 @@ while(point != dict()):
             if subpoint["measurement type"] == "wifi scan":
                 wifiCount = len(subpoint["data"])
                 loc = iModel.inertialFunctionPredictionLatLonAlt( subpoint["timestamp"]  )
-                if loc and iModel.computeUncertainty()["horizontal"] < 10:
-                    addToGrid( loc[0], loc[1], "WifiCount", wifiCount)
+                if loc and iModel.computeUncertainty():
+                    addToGrid( loc[0], loc[1], "WifiCount", wifiCount, iModel.computeUncertainty()["horizontal"])
 
 
 
@@ -58,20 +60,21 @@ while(point != dict()):
                         print("CO2 is zero")
                     else:
                         predictedLocation = iModel.inertialFunctionPredictionLatLonAlt( p[1])
-                        if predictedLocation and iModel.computeUncertainty()["horizontal"] < 10:
+                        if predictedLocation and iModel.computeUncertainty():
                             if m in meass:
                                 meass[m]+=[p[0],]
                             else:
                                 meass[m] = [p[0],1]
-                            addToGrid( predictedLocation[0], predictedLocation[1], m, p[0])
+                            addToGrid( predictedLocation[0], predictedLocation[1], m, p[0], iModel.computeUncertainty()["horizontal"])
 
 
 
     if point["timestamp"] % 86400 == 0 and earliestPoint != point["timestamp"]:
         print( "Percentage found: {:}".format( (100 * seconds) / (point["timestamp"] - earliestPoint)))
         earliestPoint = point["timestamp"]
-        if seconds == 0:
+        if seconds == 0 and point["timestamp"] > datetime.datetime(2022,1,1).timestamp():
             break;
+            "fff"
         seconds = 0
     point = readNextData()
 
@@ -86,7 +89,7 @@ for r in gridResolutions:
         drawSVG = False
     for measurement in measurementGrid[r].keys():
         afterFirst = False
-        geoJSONFile = open("data/" + measurement+"_"+ "{:05}".format(gridResolution) + "_GEO.json", "w")
+        geoJSONFile = open(dataDirectory + measurement+"_"+ "{:06}".format(gridResolution) + "_GEO.json", "w")
         geoJSONFile.write( """
           {"type" : "FeatureCollection",
              "features": [

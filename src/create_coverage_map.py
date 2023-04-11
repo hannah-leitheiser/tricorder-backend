@@ -1,5 +1,5 @@
-from generatemap import *
-from readData import *
+from create_map import *
+from read_data_file_library import *
 import datetime
 from pytz import timezone
 
@@ -7,7 +7,7 @@ from pytz import timezone
 newMapDate = 1639900000
 newEquipDate = 1658462830
 
-startReadingData(["2023"])
+startReadingData(["2022","2023"])
 point = readNextData()
 
 locationList = dict()

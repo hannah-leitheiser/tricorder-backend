@@ -12,7 +12,8 @@ newEquipDate = 1658462830
 startReadingData(["2022","2023"])
 point = readNextData()
 earliestPoint = point["timestamp"]
-seconds = 0
+wifis = 0
+cells = 0
 
 
 while(point != dict()):
@@ -25,12 +26,12 @@ while(point != dict()):
                 uncertainty = iModel.computeUncertainty()
                 if loc and uncertainty and "horizontal" in uncertainty:
                     uncertainty = iModel.computeUncertainty()["horizontal"] 
-                    requiredUncertainty = 10
+                    requiredUncertainty = 6
                     if (loc[0] > 44.976323 and 
                             loc[0] < 44.976732 and
                             loc[1] < -93.353022 and
                             loc[1] > -93.353655):
-                            requiredUncertainty = 0.5
+                            requiredUncertainty = 0.1
                     else:
                         if geopy.distance.geodesic( ( loc[0], loc[1] ),(44.9650269,-93.3526834) ).m < 100:
                             requiredUncertainty = 1
@@ -41,6 +42,7 @@ while(point != dict()):
                                 if "SSID" not in w:
                                     w["SSID"] = ""
 
+                                wifis += 1
                                 addToTransmitterData( "wifi", w["BSSID"] + "_" + str(w["frequency"])[0] + "G_" + w["SSID"], {"latitude":loc[0], "longitude":loc[1], "altitude":loc[2], "accuracy, horizontal":uncertainty }, w["level"], subpoint["source"], subpoint["timestamp"])
 
                         if ("cell scan" ==  subpoint["measurement type"]):
@@ -57,6 +59,7 @@ while(point != dict()):
                                                     
                                 if "strength, dbm" in w.keys():
                                     #print(name)
+                                    cells+=1
 
                                     addToTransmitterData( "cell", name, {"latitude":loc[0], "longitude":loc[1], "altitude":loc[2], "accuracy, horizontal":uncertainty }, w["strength, dbm"], subpoint["source"], subpoint["timestamp"])
 
@@ -67,10 +70,10 @@ while(point != dict()):
 
 
     if point["timestamp"] % 86400 == 0 and earliestPoint != point["timestamp"]:
-        print( "Percentage found: {:}".format( (100 * seconds) / (point["timestamp"] - earliestPoint)))
-        earliestPoint = point["timestamp"]
+        print( "Wifis : {:} Cells : {:}".format( wifis, cells))
         #if seconds == 0:
         #    break;
-        seconds = 0
+        wifis = 0
+        cells = 0
     point = readNextData()
 

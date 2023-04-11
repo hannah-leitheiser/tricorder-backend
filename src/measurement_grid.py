@@ -1,4 +1,12 @@
-gridResolutions=[ 50000,20000, 15000, 10000, 5000, 2500, 1000, 500, 250, 100, 50, 25, 10, 5, 2, 1 ]
+import geopy.distance
+
+gridResolutions=[ 100000,50000,20000, 15000, 10000, 5000, 2500, 1000, 500, 250, 100, 50, 25, 10, 5, 2, 1 ]
+
+gridUncertainty=dict()
+for res in gridResolutions:
+    #assume 45 degrees latitude for simiplicity
+    gridUncertainty[res] = geopy.distance.geodesic( (45, -93.0), (45, -93 + 1/res)).m
+
 #gridResolution= 10
 
 measurementGrid = dict()
@@ -7,31 +15,32 @@ for r in gridResolutions:
 import statistics
 import math
 
-def addToGrid(x_orig, y_orig, measurementType, measurement):
+def addToGrid(x_orig, y_orig, measurementType, measurement, uncertaintyPosition):
 
 
     for r in gridResolutions:
-        x = x_orig
-        y = y_orig
-        gridResolution = r
-        #init Grid, if necessary
-        if measurementType not in measurementGrid[r].keys():
-            measurementGrid[r][measurementType] = dict()
-        
-        x=int(x*gridResolution)
-        y=int(y*gridResolution)
+        if uncertaintyPosition < gridUncertainty[r]:
+            x = x_orig
+            y = y_orig
+            gridResolution = r
+            #init Grid, if necessary
+            if measurementType not in measurementGrid[r].keys():
+                measurementGrid[r][measurementType] = dict()
+            
+            x=int(x*gridResolution)
+            y=int(y*gridResolution)
 
-        if x not in measurementGrid[r][measurementType].keys():
-            measurementGrid[r][measurementType][x] = dict()
+            if x not in measurementGrid[r][measurementType].keys():
+                measurementGrid[r][measurementType][x] = dict()
 
-        if y not in measurementGrid[r][measurementType][x].keys():
-            measurementGrid[r][measurementType][x][y] = list()
+            if y not in measurementGrid[r][measurementType][x].keys():
+                measurementGrid[r][measurementType][x][y] = list()
 
-        if type(measurement) == type(list()):
-            for m in measurement:
-                measurementGrid[r][measurementType][x][y].append(m)
-        else:
-                measurementGrid[r][measurementType][x][y].append(measurement)
+            if type(measurement) == type(list()):
+                for m in measurement:
+                    measurementGrid[r][measurementType][x][y].append(m)
+            else:
+                    measurementGrid[r][measurementType][x][y].append(measurement)
 
 
 import scipy.stats

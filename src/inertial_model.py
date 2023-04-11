@@ -9,6 +9,9 @@ import numpy
 import datetime
 import os
 
+
+inertialModelDirectory = "data_file_library_inertial_models/"
+
 fileData = dict()
 
 def guassianPDF(deviation, sigma):
@@ -172,6 +175,62 @@ class inertialModel:
         self.times.append(time)
         return
 
+
+    def probForAddMeasurementSpeedHorizontal( self, time, speed, uncertainty):        
+        p_v = self.inertialFunctionPrediction( time, 1 )
+        if self.modelLatLonSimplified:
+            predVelEast = p_v[1] * self.meters_per_lon
+            predVelNorth = p_v[0] * self.meters_per_lat
+        else:
+            p = self.inertialFunctionPredictionLatLonAlt( time  )
+            predVelEast = numpy.dot( p_v, EastVector(p[0], p[1], p[2]))
+            predVelNorth = numpy.dot( p_v, NorthVector(p[0], p[1], p[2]))
+
+        predSpeed = (( predVelEast ** 2 ) + ( predVelNorth ** 2) ) ** 0.5
+        #print (  ("velocity", (predVelDown - velocityDown),
+        #         (predVelEast - velocityEast),
+        #          (predVelNorth - velocityNorth) ))
+        #return guassianPDF( distance
+        return -0.5 * (  ((speed - predSpeed) / uncertainty)**2 )
+
+
+    def addMeasurementSpeedHorizontal ( self, time, speed, accuracy):
+        self.functionsForProbability.append( lambda s : s.probForAddMeasurementSpeedHorizontal(time, speed, accuracy ) )
+        return
+
+
+
+    def probForAddMeasurementHeading( self, time, heading, uncertainty): 
+        if uncertainty == 0:
+            return None
+        p_v = self.inertialFunctionPrediction( time, 1 )
+        if self.modelLatLonSimplified:
+            predVelEast = p_v[1] * self.meters_per_lon
+            predVelNorth = p_v[0] * self.meters_per_lat
+        else:
+            p = self.inertialFunctionPredictionLatLonAlt( time  )
+            predVelEast = numpy.dot( p_v, EastVector(p[0], p[1], p[2]))
+            predVelNorth = numpy.dot( p_v, NorthVector(p[0], p[1], p[2]))
+
+        predHeading = math.degrees(math.atan2(predVelEast, predVelNorth) )
+        predHeading = (predHeading + 360.0) % 360.0
+
+        diff = predHeading - heading
+        if abs(diff - 360) < abs(diff):
+            diff = diff - 360
+        if abs(diff + 360) < abs(diff):
+            diff = diff + 360
+        return -0.5 * (  ((diff) / uncertainty)**2 )
+
+
+    def addMeasurementHeading ( self, time, heading, accuracy):
+        self.functionsForProbability.append( lambda s : s.probForAddMeasurementHeading(time, heading, accuracy ) )
+        return
+
+
+
+
+
     def computeProb( self ):
         probSum = 0
         for fun in self.functionsForProbability:
@@ -281,12 +340,21 @@ class inertialModel:
             speed = ((predVelDown **2 ) + (predVelEast ** 2) + (predVelNorth ** 2)) ** 0.5
             #print( " speed    : " + str(speed))
             if speed > 60:
-                print("Too fast!!!!")
+                print("Too fast, inertial_model!!!!")
+                print("simpleData")
+                print(self.simpleData)
+                print("speed")
                 print(speed)
                 print( (p_v, predVelDown, predVelEast, predVelNorth))
                 print(self.parameters)
                 print(self.timeBias)
-                exit()
+                print("Make stationary?", end="")
+                response = input()
+                if "Y" in response.upper():
+                    self.specifyStationary()
+                else:
+                    exit()
+
 
         return self.parameters
 

@@ -6,6 +6,9 @@ from inertial_model import *
 from pressure_data import *
 from create_histogram import *
 from validate_location import *
+from delete_sample import deleteSample
+
+deleteSample( inertialModelDirectory, 0.05)
 
 newMapDate = 1639900000
 newEquipDate = 1658462830
@@ -127,6 +130,8 @@ while(point != dict()):
                         else:
                             print(subPoint)
                             exit()
+                if "bearing" in locationData and "accuracy, bearing" in locationData and float(locationData["accuracy, bearing"]) > 0:
+                    iModel.addMeasurementHeading( subpoint["timestamp"], float(locationData["bearing"]), float(locationData["accuracy, bearing"]))
 
                 if "velocity, down" in locationData and "velocity, east" in locationData and "velocity, north" in locationData:
                     iModel.addMeasurementVelocity( subpoint["timestamp"], locationData["velocity, down"], locationData["velocity, east"], locationData["velocity, north"], locationData["speed, accuracy"] )
@@ -137,6 +142,7 @@ while(point != dict()):
                         tttt=3
                         #print("vel sum: {:}, accuracy: {:} - stat".format( (locationData["velocity, down"] ** 2 + locationData["velocity, east"]**2 + locationData["velocity, down"] ** 2)**0.5, locationData["speed, accuracy"] ))
                 if "speed" in locationData and "accuracy, speed" in locationData and float(locationData["accuracy, speed"]) > 0:
+                    iModel.addMeasurementSpeedHorizontal( subpoint["timestamp"], float(locationData["speed"]), float(locationData["accuracy, speed"]))
                     if locationData["speed"] > locationData["accuracy, speed"]:
                         isPointStationary = False
                         print("speed: {:}, accuracy: {:} - not stationary".format(locationData["speed"], locationData["accuracy, speed"]))

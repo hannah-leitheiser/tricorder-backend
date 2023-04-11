@@ -30,11 +30,11 @@ def validateLocation( subpoint ):
                     return subpoint
 
             if "accuracy, horizontal" not in locationData or not is_float(locationData["accuracy, horizontal"]) or locationData["accuracy, horizontal"] == 0:
-                    locationData["accuracy, horizontal"] = 100000
+                    locationData["accuracy, horizontal"] = 10000
             else:
                     locationData["accuracy, horizontal"] = float(locationData["accuracy, horizontal"])
             if "accuracy, vertical" not in locationData or not is_float(locationData["accuracy, vertical"]) or locationData["accuracy, vertical"] == 0:
-                    locationData["accuracy, vertical"] = 100000
+                    locationData["accuracy, vertical"] = 1000
             else:
                     locationData["accuracy, vertical"] = float(locationData["accuracy, vertical"])
 
